@@ -339,6 +339,69 @@ def run_many(runs: int, seed: int | None) -> None:
         print(f"  {team:<24} {count:>7}  ({100 * count / runs:5.2f}%)")
 
 
+def round_of_match(match_no: int) -> str:
+    """Return the round name (e.g. "Round of 16") for a knockout match."""
+    for name, match_range in ROUND_NAMES:
+        if match_no in match_range:
+            return name
+    raise ValueError(f"unknown match number {match_no}")
+
+
+def group_of(team: str) -> str | None:
+    """Return the group letter a team belongs to, or None if not found."""
+    for group, teams in GROUPS.items():
+        if team in teams:
+            return group
+    return None
+
+
+def simulate_meetings(
+    team_a: str, team_b: str, runs: int, seed: int | None = None
+) -> list[str]:
+    """Run ``runs`` tournaments and report how often two teams meet.
+
+    Returns the list of rounds in which the two teams met (one entry per
+    meeting). Teams in the same group always meet once in the group stage and
+    may meet again from the quarterfinals onward, so a single tournament can
+    contribute more than one meeting. Also prints a human-readable summary.
+    """
+    for team in (team_a, team_b):
+        if team not in FIFA_POINTS:
+            raise KeyError(f"unknown team: {team!r}")
+    if seed is not None:
+        random.seed(seed)
+
+    pair = {team_a, team_b}
+    same_group = group_of(team_a) == group_of(team_b)
+
+    rounds_met: list[str] = []
+    tournaments_with_meeting = 0
+    for _ in range(runs):
+        met_this_run: list[str] = []
+        if same_group:  # a round-robin guarantees a group-stage meeting
+            met_this_run.append("Group stage")
+        _champion, _group_stage, results = simulate_world_cup()
+        for match_no, (a, b, _winner) in results.items():
+            if {a, b} == pair:
+                met_this_run.append(round_of_match(match_no))
+        rounds_met.extend(met_this_run)
+        tournaments_with_meeting += bool(met_this_run)
+
+    pct = 100 * tournaments_with_meeting / runs
+    summary = (
+        f"{team_a} met {team_b} {tournaments_with_meeting}/{runs} times "
+        f"({pct:.1f}%)"
+    )
+    if rounds_met:
+        top_round, top_count = Counter(rounds_met).most_common(1)[0]
+        summary += (
+            f", most often in the {top_round} "
+            f"({100 * top_count / runs:.1f}%)"
+        )
+    print(summary)
+    return rounds_met
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -352,9 +415,20 @@ def main() -> None:
         default=None,
         help="simulate this many tournaments and print a champion tally",
     )
+    parser.add_argument(
+        "--meet",
+        nargs=2,
+        metavar=("TEAM_A", "TEAM_B"),
+        help=(
+            "run --runs tournaments (default 1000) and report how often the "
+            "two teams meet, and in which round"
+        ),
+    )
     args = parser.parse_args()
 
-    if args.runs:
+    if args.meet:
+        simulate_meetings(args.meet[0], args.meet[1], args.runs or 1000, args.seed)
+    elif args.runs:
         run_many(args.runs, args.seed)
     else:
         champion, group_stage, results = simulate_world_cup(seed=args.seed)
