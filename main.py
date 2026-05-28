@@ -32,7 +32,9 @@ ELO_SCALE = 600  # FIFA's win-probability scale s
 FIFA_POINTS: dict[str, float] = {
     team: points
     for team, points in json.loads(
-        (Path(__file__).parent / "fifa_points.json").read_text(encoding="utf-8")
+        (Path(__file__).parent / "fifa_points.json").read_text(
+            encoding="utf-8"
+        )
     ).items()
     if not team.startswith("_")
 }
@@ -118,24 +120,28 @@ ROUND_NAMES: list[tuple[str, range]] = [
 def win_probability(team_a: str, team_b: str) -> float:
     """FIFA Elo probability that ``team_a`` beats ``team_b``.
 
-    P = 1 / (1 + 10 ** ((R_b - R_a) / s)) with scale s = 600. Equal points give
-    0.5, and win_probability(a, b) + win_probability(b, a) == 1.
+    P = 1 / (1 + 10 ** ((R_b - R_a) / s)) with scale s = 600.
+    Equal points give 0.5, and win_prob(a, b) + win_prob(b, a) == 1.
     """
     diff = FIFA_POINTS[team_b] - FIFA_POINTS[team_a]
     return 1.0 / (1.0 + 10.0 ** (diff / ELO_SCALE))
 
 
 def play(team_a: str, team_b: str) -> str:
-    """Play a single match, drawing the winner from the Elo win probability."""
-    return team_a if random.random() < win_probability(team_a, team_b) else team_b
+    """Play a single match, drawing the winner from the Elo win
+    probability."""
+    return (
+        team_a if random.random() < win_probability(team_a, team_b) else team_b
+    )
 
 
 def simulate_group(teams: list[str]) -> list[tuple[str, int]]:
-    """Round-robin a group of 4, returning (team, wins) ranked 1st -> 4th.
+    """Round-robin a group of 4, returning (team, wins) ranked
+    1st -> 4th.
 
-    Ranking is by wins; teams level on wins are separated by FIFA points (the
-    higher-ranked side advances), a deterministic stand-in for the real
-    goal-difference tiebreakers.
+    Ranking is by wins; teams level on wins are separated by FIFA points
+    (the higher-ranked side advances), a deterministic stand-in for the
+    real goal-difference tiebreakers.
     """
     wins: Counter[str] = Counter()
     for home, away in combinations(teams, 2):
@@ -151,15 +157,17 @@ def simulate_group_stage() -> tuple[
 ]:
     """Run all 12 groups.
 
-    Returns the winner, runner-up and third per group, plus each third-placed
-    team's win count (needed to rank the best thirds).
+    Returns the winner, runner-up and third per group, plus each
+    third-placed team's win count (needed to rank the best thirds).
     """
     winners: dict[str, str] = {}
     runners_up: dict[str, str] = {}
     thirds: dict[str, str] = {}
     third_wins: dict[str, int] = {}
     for group, teams in GROUPS.items():
-        (first, _), (second, _), (third, third_w), _fourth = simulate_group(teams)
+        (first, _), (second, _), (third, third_w), _fourth = simulate_group(
+            teams
+        )
         winners[group] = first
         runners_up[group] = second
         thirds[group] = third
@@ -170,11 +178,12 @@ def simulate_group_stage() -> tuple[
 def pick_best_thirds(
     thirds: dict[str, str], third_wins: dict[str, int]
 ) -> list[str]:
-    """Choose the source groups of the 8 best of the 12 third-placed teams.
+    """Choose the source groups of the 8 best of the 12 third-placed
+    teams.
 
-    Thirds are ranked by wins, then by FIFA points (a deterministic proxy for
-    the real points/goal-difference criteria). Returns the qualifying groups
-    sorted alphabetically.
+    Thirds are ranked by wins, then by FIFA points (a deterministic
+    proxy for the real points/goal-difference criteria). Returns the
+    qualifying groups sorted alphabetically.
     """
     best = sorted(
         thirds,
@@ -188,8 +197,9 @@ def assign_thirds(qualified_groups: list[str]) -> dict[int, str]:
     """Match the 8 qualifying third-placed groups onto the 8 third slots.
 
     Each slot only accepts thirds from its allowed set of groups (FIFA's
-    495-combination matrix). We find any valid perfect matching via augmenting
-    paths; one is always guaranteed to exist. Returns {match_no: group}.
+    495-combination matrix). We find any valid perfect matching via
+    augmenting paths; one is always guaranteed to exist.
+    Returns {match_no: group}.
     """
     match_of_group: dict[str, int] = {}
 
@@ -252,8 +262,9 @@ def simulate_world_cup(
 ) -> tuple[str, dict, dict]:
     """Simulate one full tournament.
 
-    Returns the champion plus the group-stage and knockout details needed to
-    trace the progression. If ``seed`` is given the run is reproducible.
+    Returns the champion plus the group-stage and knockout details
+    needed to trace the progression. If ``seed`` is given the run is
+    reproducible.
     """
     if seed is not None:
         random.seed(seed)
@@ -283,7 +294,9 @@ def print_trace(champion: str, group_stage: dict, results: dict) -> None:
     def labelled(team: str) -> str:
         return f"{team} ({FIFA_POINTS[team]:.0f})"
 
-    print("\nGroup stage (1st / 2nd / 3rd advance candidates; FIFA points shown):")
+    print(
+        "\nGroup stage (1st / 2nd / 3rd advance candidates;FIFA points shown):"
+    )
     for group in GROUPS:
         w = group_stage["winners"][group]
         r = group_stage["runners_up"][group]
