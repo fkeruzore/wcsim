@@ -5,10 +5,15 @@ round-robin; the 12 group winners, 12 runners-up and the 8 best third-placed
 teams (32 teams total) advance to a brand-new Round of 32, followed by the
 Round of 16, quarterfinals, semifinals and the final.
 
-This simulation makes one simplifying assumption: *every match is an
-independent 50/50 coin flip*. Under that model every team is equally likely to
-lift the trophy (1 in 48). The script draws a winner for each game, traces the
-progression through every round, and reports the champion.
+Match outcomes are *skill-based*: each game is drawn from the FIFA Elo
+win-probability formula using published FIFA ranking points (see
+``fifa_points.json``). The probability that team A beats team B is
+
+    P(A) = 1 / (1 + 10 ** ((R_B - R_A) / s)),   with scale s = 600,
+
+where R is a team's FIFA points. Stronger teams therefore advance more often,
+and the script traces the progression through every round and reports the
+champion.
 
 Format and bracket pairings are the real ones (final draw of 5 December 2025).
 """
@@ -16,9 +21,21 @@ Format and bracket pairings are the real ones (final draw of 5 December 2025).
 from __future__ import annotations
 
 import argparse
+import json
 import random
 from collections import Counter
 from itertools import combinations
+from pathlib import Path
+
+# --- Team strengths: FIFA ranking points (higher = stronger) ----------------
+ELO_SCALE = 600  # FIFA's win-probability scale s
+FIFA_POINTS: dict[str, float] = {
+    team: points
+    for team, points in json.loads(
+        (Path(__file__).parent / "fifa_points.json").read_text(encoding="utf-8")
+    ).items()
+    if not team.startswith("_")
+}
 
 # --- The real group draw (final draw, 5 December 2025) ----------------------
 # A handful of slots were European/intercontinental play-off berths at draw
@@ -98,51 +115,73 @@ ROUND_NAMES: list[tuple[str, range]] = [
 ]
 
 
+def win_probability(team_a: str, team_b: str) -> float:
+    """FIFA Elo probability that ``team_a`` beats ``team_b``.
+
+    P = 1 / (1 + 10 ** ((R_b - R_a) / s)) with scale s = 600. Equal points give
+    0.5, and win_probability(a, b) + win_probability(b, a) == 1.
+    """
+    diff = FIFA_POINTS[team_b] - FIFA_POINTS[team_a]
+    return 1.0 / (1.0 + 10.0 ** (diff / ELO_SCALE))
+
+
 def play(team_a: str, team_b: str) -> str:
-    """Play a single match: a pure 50/50 coin flip returning the winner."""
-    return random.choice((team_a, team_b))
+    """Play a single match, drawing the winner from the Elo win probability."""
+    return team_a if random.random() < win_probability(team_a, team_b) else team_b
 
 
-def simulate_group(teams: list[str]) -> list[str]:
-    """Round-robin a group of 4, returning teams ranked 1st -> 4th.
+def simulate_group(teams: list[str]) -> list[tuple[str, int]]:
+    """Round-robin a group of 4, returning (team, wins) ranked 1st -> 4th.
 
-    Ranking is by wins; teams level on wins are separated randomly (an unbiased
-    tiebreak, since all teams are equally strong).
+    Ranking is by wins; teams level on wins are separated by FIFA points (the
+    higher-ranked side advances), a deterministic stand-in for the real
+    goal-difference tiebreakers.
     """
     wins: Counter[str] = Counter()
     for home, away in combinations(teams, 2):
         wins[play(home, away)] += 1
-    return sorted(
-        teams, key=lambda t: (wins[t], random.random()), reverse=True
+    ranked = sorted(
+        teams, key=lambda t: (wins[t], FIFA_POINTS[t]), reverse=True
     )
+    return [(team, wins[team]) for team in ranked]
 
 
 def simulate_group_stage() -> tuple[
-    dict[str, str], dict[str, str], dict[str, str]
+    dict[str, str], dict[str, str], dict[str, str], dict[str, int]
 ]:
     """Run all 12 groups.
 
-    Returns the winner, runner-up and third per group.
+    Returns the winner, runner-up and third per group, plus each third-placed
+    team's win count (needed to rank the best thirds).
     """
     winners: dict[str, str] = {}
     runners_up: dict[str, str] = {}
     thirds: dict[str, str] = {}
+    third_wins: dict[str, int] = {}
     for group, teams in GROUPS.items():
-        first, second, third, _fourth = simulate_group(teams)
+        (first, _), (second, _), (third, third_w), _fourth = simulate_group(teams)
         winners[group] = first
         runners_up[group] = second
         thirds[group] = third
-    return winners, runners_up, thirds
+        third_wins[group] = third_w
+    return winners, runners_up, thirds, third_wins
 
 
-def pick_best_thirds(thirds: dict[str, str]) -> list[str]:
-    """Choose the 8 best of the 12 third-placed teams' source groups.
+def pick_best_thirds(
+    thirds: dict[str, str], third_wins: dict[str, int]
+) -> list[str]:
+    """Choose the source groups of the 8 best of the 12 third-placed teams.
 
-    With no goal model every third-placed team has an identical record, so the
-    eight that advance are drawn at random (which is exactly the unbiased
-    behaviour we want under the 50/50 assumption).
+    Thirds are ranked by wins, then by FIFA points (a deterministic proxy for
+    the real points/goal-difference criteria). Returns the qualifying groups
+    sorted alphabetically.
     """
-    return sorted(random.sample(list(thirds.keys()), 8))
+    best = sorted(
+        thirds,
+        key=lambda g: (third_wins[g], FIFA_POINTS[thirds[g]]),
+        reverse=True,
+    )[:8]
+    return sorted(best)
 
 
 def assign_thirds(qualified_groups: list[str]) -> dict[int, str]:
@@ -219,8 +258,8 @@ def simulate_world_cup(
     if seed is not None:
         random.seed(seed)
 
-    winners, runners_up, thirds = simulate_group_stage()
-    qualified_groups = pick_best_thirds(thirds)
+    winners, runners_up, thirds, third_wins = simulate_group_stage()
+    qualified_groups = pick_best_thirds(thirds, third_wins)
     third_assignment = assign_thirds(qualified_groups)
     results, champion = simulate_knockout(
         winners, runners_up, thirds, third_assignment
@@ -241,12 +280,18 @@ def print_trace(champion: str, group_stage: dict, results: dict) -> None:
     print("FIFA World Cup 2026 - simulated tournament")
     print("=" * 56)
 
-    print("\nGroup stage (1st / 2nd / 3rd advance candidates):")
+    def labelled(team: str) -> str:
+        return f"{team} ({FIFA_POINTS[team]:.0f})"
+
+    print("\nGroup stage (1st / 2nd / 3rd advance candidates; FIFA points shown):")
     for group in GROUPS:
         w = group_stage["winners"][group]
         r = group_stage["runners_up"][group]
         t = group_stage["thirds"][group]
-        print(f"  Group {group}:  1. {w:<22} 2. {r:<22} 3. {t}")
+        print(
+            f"  Group {group}:  1. {labelled(w):<28} "
+            f"2. {labelled(r):<28} 3. {labelled(t)}"
+        )
 
     qt = group_stage["qualified_thirds"]
     print(f"\nBest 8 third-placed teams advance (groups {', '.join(qt)}):")
@@ -273,10 +318,9 @@ def run_many(runs: int, seed: int | None) -> None:
         champion, _, _ = simulate_world_cup()
         tally[champion] += 1
 
-    expected_pct = 100 / 48
     print(
         f"Champions over {runs:,} simulated tournaments"
-        f" (expected ~{expected_pct:.1f}% each):"
+        f" (Elo-weighted, so stronger teams win more often):"
     )
     for team, count in tally.most_common():
         print(f"  {team:<24} {count:>7}  ({100 * count / runs:5.2f}%)")
@@ -284,7 +328,9 @@ def run_many(runs: int, seed: int | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Simulate the FIFA 2026 World Cup with 50/50 matches."
+        description=(
+            "Simulate the FIFA 2026 World Cup with Elo-based match outcomes."
+        )
     )
     parser.add_argument("--seed", type=int, default=None, help="random seed")
     parser.add_argument(
