@@ -440,6 +440,7 @@ def simulate_meetings(
 
 
 def main() -> None:
+    global ELO_SCALE, DRAW_NU
     parser = argparse.ArgumentParser(
         description=(
             "Simulate the FIFA 2026 World Cup with Elo-based match outcomes."
@@ -453,6 +454,18 @@ def main() -> None:
         help="simulate this many tournaments and print a champion tally",
     )
     parser.add_argument(
+        "--elo-scale",
+        type=float,
+        default=ELO_SCALE,
+        help=f"FIFA Elo win-probability scale (default: {ELO_SCALE})",
+    )
+    parser.add_argument(
+        "--nu",
+        type=float,
+        default=DRAW_NU,
+        help=f"Davidson tie parameter for draw probability (default: {DRAW_NU:.4f})",
+    )
+    parser.add_argument(
         "--meet",
         nargs=2,
         metavar=("TEAM_A", "TEAM_B"),
@@ -462,6 +475,9 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    ELO_SCALE = args.elo_scale
+    DRAW_NU = args.nu
 
     if args.meet:
         simulate_meetings(args.meet[0], args.meet[1], args.runs or 1000, args.seed)
