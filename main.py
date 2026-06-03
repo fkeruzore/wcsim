@@ -11,9 +11,12 @@ win-probability formula using published FIFA ranking points (see
 
     P(A) = 1 / (1 + 10 ** ((R_B - R_A) / s)),   with scale s = 600,
 
-where R is a team's FIFA points. Stronger teams therefore advance more often,
-and the script traces the progression through every round and reports the
-champion.
+where R is a team's FIFA points. Group games can also end in a draw (3 points
+for a win, 1 each for a draw): outcomes follow a Davidson tie model that adds a
+draw probability while preserving the win/loss odds above. Knockout games never
+draw -- a tie is resolved to a winner (extra time / penalties). Stronger teams
+therefore advance more often, and the script traces the progression through
+every round and reports the champion.
 
 Format and bracket pairings are the real ones (final draw of 5 December 2025).
 """
@@ -29,6 +32,7 @@ from pathlib import Path
 
 # --- Team strengths: FIFA ranking points (higher = stronger) ----------------
 ELO_SCALE = 600  # FIFA's win-probability scale s
+DRAW_NU = 2 / 3  # Davidson tie parameter; ~25% draws for evenly matched teams
 FIFA_POINTS: dict[str, float] = {
     team: points
     for team, points in json.loads(
@@ -127,29 +131,61 @@ def win_probability(team_a: str, team_b: str) -> float:
     return 1.0 / (1.0 + 10.0 ** (diff / ELO_SCALE))
 
 
-def play(team_a: str, team_b: str) -> str:
-    """Play a single match, drawing the winner from the Elo win
-    probability."""
-    return (
-        team_a if random.random() < win_probability(team_a, team_b) else team_b
-    )
+def outcome_probabilities(
+    team_a: str, team_b: str
+) -> tuple[float, float, float]:
+    """Davidson tie-model probabilities (P(A wins), P(draw), P(B wins)).
+
+    Reduces to ``win_probability`` when ``DRAW_NU == 0``; preserves the
+    win/loss odds ratio and is symmetric in A and B.
+    """
+    r = 10.0 ** ((FIFA_POINTS[team_a] - FIFA_POINTS[team_b]) / (2 * ELO_SCALE))
+    denom = r + 1.0 / r + DRAW_NU
+    return r / denom, DRAW_NU / denom, (1.0 / r) / denom
+
+
+def play(team_a: str, team_b: str, draw_ok: bool = True) -> str | None:
+    """Play a single match. Returns the winner, or ``None`` for a draw.
+
+    With ``draw_ok=False`` the game always resolves to a winner (extra
+    time / penalties), drawn straight from the Elo win probability.
+    """
+    if not draw_ok:
+        return (
+            team_a
+            if random.random() < win_probability(team_a, team_b)
+            else team_b
+        )
+    p_a, p_draw, _ = outcome_probabilities(team_a, team_b)
+    x = random.random()
+    if x < p_a:
+        return team_a
+    if x < p_a + p_draw:
+        return None
+    return team_b
 
 
 def simulate_group(teams: list[str]) -> list[tuple[str, int]]:
-    """Round-robin a group of 4, returning (team, wins) ranked
+    """Round-robin a group of 4, returning (team, points) ranked
     1st -> 4th.
 
-    Ranking is by wins; teams level on wins are separated by FIFA points
-    (the higher-ranked side advances), a deterministic stand-in for the
-    real goal-difference tiebreakers.
+    Points are the usual 3 for a win, 1 each for a draw, 0 for a loss.
+    Ranking is by points; teams level on points are separated by FIFA
+    points (the higher-ranked side advances), a deterministic stand-in
+    for the real goal-difference tiebreakers.
     """
-    wins: Counter[str] = Counter()
+    points: Counter[str] = Counter()
     for home, away in combinations(teams, 2):
-        wins[play(home, away)] += 1
+        winner = play(home, away)  # draw_ok=True by default
+        if winner is None:
+            points[home] += 1
+            points[away] += 1
+        else:
+            points[winner] += 3
     ranked = sorted(
-        teams, key=lambda t: (wins[t], FIFA_POINTS[t]), reverse=True
+        teams, key=lambda t: (points[t], FIFA_POINTS[t]), reverse=True
     )
-    return [(team, wins[team]) for team in ranked]
+    return [(team, points[team]) for team in ranked]
 
 
 def simulate_group_stage() -> tuple[
@@ -158,36 +194,36 @@ def simulate_group_stage() -> tuple[
     """Run all 12 groups.
 
     Returns the winner, runner-up and third per group, plus each
-    third-placed team's win count (needed to rank the best thirds).
+    third-placed team's points (needed to rank the best thirds).
     """
     winners: dict[str, str] = {}
     runners_up: dict[str, str] = {}
     thirds: dict[str, str] = {}
-    third_wins: dict[str, int] = {}
+    third_points: dict[str, int] = {}
     for group, teams in GROUPS.items():
-        (first, _), (second, _), (third, third_w), _fourth = simulate_group(
+        (first, _), (second, _), (third, third_pts), _fourth = simulate_group(
             teams
         )
         winners[group] = first
         runners_up[group] = second
         thirds[group] = third
-        third_wins[group] = third_w
-    return winners, runners_up, thirds, third_wins
+        third_points[group] = third_pts
+    return winners, runners_up, thirds, third_points
 
 
 def pick_best_thirds(
-    thirds: dict[str, str], third_wins: dict[str, int]
+    thirds: dict[str, str], third_points: dict[str, int]
 ) -> list[str]:
     """Choose the source groups of the 8 best of the 12 third-placed
     teams.
 
-    Thirds are ranked by wins, then by FIFA points (a deterministic
+    Thirds are ranked by points, then by FIFA points (a deterministic
     proxy for the real points/goal-difference criteria). Returns the
     qualifying groups sorted alphabetically.
     """
     best = sorted(
         thirds,
-        key=lambda g: (third_wins[g], FIFA_POINTS[thirds[g]]),
+        key=lambda g: (third_points[g], FIFA_POINTS[thirds[g]]),
         reverse=True,
     )[:8]
     return sorted(best)
@@ -239,20 +275,21 @@ def simulate_knockout(
 
     results: dict[int, tuple[str, str, str]] = {}
 
+    # Knockouts resolve to a winner (extra time / penalties): no draws.
     # Round of 32: fixed pairings, then group-winner vs assigned third-placed.
     for match_no, code_a, code_b in R32_FIXED:
         a, b = slot_team(code_a), slot_team(code_b)
-        results[match_no] = (a, b, play(a, b))
+        results[match_no] = (a, b, play(a, b, draw_ok=False))
     for match_no, winner_group, _allowed in R32_THIRD_SLOTS:
         a = winners[winner_group]
         b = thirds[third_assignment[match_no]]
-        results[match_no] = (a, b, play(a, b))
+        results[match_no] = (a, b, play(a, b, draw_ok=False))
 
     # Round of 16 onward: resolve "W<n>" feeders from earlier results.
     for match_no, feed_a, feed_b in KNOCKOUT_FEED:
         a = results[int(feed_a[1:])][2]
         b = results[int(feed_b[1:])][2]
-        results[match_no] = (a, b, play(a, b))
+        results[match_no] = (a, b, play(a, b, draw_ok=False))
 
     return results, results[104][2]
 
@@ -269,8 +306,8 @@ def simulate_world_cup(
     if seed is not None:
         random.seed(seed)
 
-    winners, runners_up, thirds, third_wins = simulate_group_stage()
-    qualified_groups = pick_best_thirds(thirds, third_wins)
+    winners, runners_up, thirds, third_points = simulate_group_stage()
+    qualified_groups = pick_best_thirds(thirds, third_points)
     third_assignment = assign_thirds(qualified_groups)
     results, champion = simulate_knockout(
         winners, runners_up, thirds, third_assignment
