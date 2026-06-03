@@ -68,9 +68,9 @@ France met Argentina 693/10000 times (6.9%), most often in the Semifinals (3.7%)
 
 Pass `--seed <int>` to any mode for reproducible results.
 
-## Advanced
+## Advanced usage
 
-**Varying simulation parameters** — adjust the Elo scale (`--elo-scale`) or the draw probability (`--nu`) to explore different physical assumptions:
+**Varying simulation parameters** — adjust the Elo scale (`--elo-scale`) or the draw probability (`--nu`) to explore different assumptions:
 
 ```sh
 uv run main.py -n 10000 --elo-scale 1200 --seed 47  # wide scale: win probabilities closer to 50/50, more upsets
