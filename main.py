@@ -448,6 +448,7 @@ def main() -> None:
     )
     parser.add_argument("--seed", type=int, default=None, help="random seed")
     parser.add_argument(
+        "-n",
         "--runs",
         type=int,
         default=None,
