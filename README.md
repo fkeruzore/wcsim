@@ -74,10 +74,11 @@ uv run main.py --team France --runs 10000 --seed 47
 ```
 France over 10,000 simulated tournaments:
   Won the cup 1343/10000 times (13.43%)
-  Made it out of the group 9407/10000 times (94.07%)
-  Knocked out most often in:
-    Round of 32         2405  (24.05%)
-    Round of 16         2110  (21.10%)
+  Made it to the Round of 32        9407/10000  (94.07%)
+  Made it to the Round of 16        7002/10000  (70.02%)
+  Made it to the Quarterfinals      4892/10000  (48.92%)
+  Made it to the Semifinals         3312/10000  (33.12%)
+  Made it to the Final              2110/10000  (21.10%)
   Lost most often to (knockout rounds only):
     Germany                      893  ( 8.93%), most often in the Round of 16
     Morocco                      628  ( 6.28%), most often in the Quarterfinals

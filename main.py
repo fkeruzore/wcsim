@@ -441,11 +441,11 @@ def simulate_meetings(
 def analyze_team(team: str, runs: int, seed: int | None = None) -> None:
     """Run ``runs`` tournaments and report on a single team's fortunes.
 
-    Prints how often the team wins the cup and escapes its group, the stages
-    it is knocked out at most, the teams it loses to most often in the
-    knockouts (and in which round), and the teams it faces most often in the
-    knockout rounds. Group games are excluded from the loss/opponent tallies.
-    Reuses :func:`simulate_world_cup`, mining the knockout results it returns.
+    Prints how often the team wins the cup and reaches each knockout round,
+    the teams it loses to most often in the knockouts (and in which round),
+    and the teams it faces most often in the knockout rounds. Group games are
+    excluded from the loss/opponent tallies. Reuses :func:`simulate_world_cup`,
+    mining the knockout results it returns.
     """
     if team not in FIFA_POINTS:
         raise KeyError(f"unknown team: {team!r}")
@@ -453,8 +453,7 @@ def analyze_team(team: str, runs: int, seed: int | None = None) -> None:
         random.seed(seed)
 
     titles = 0
-    advanced = 0
-    exit_stages: Counter[str] = Counter()
+    rounds_reached: Counter[str] = Counter()
     losses_by_opponent: dict[str, Counter[str]] = defaultdict(Counter)
     knockout_opponents: Counter[str] = Counter()
 
@@ -469,41 +468,23 @@ def analyze_team(team: str, runs: int, seed: int | None = None) -> None:
             if team in (a, b)
         ]
         for match_no, a, b, winner in team_knockouts:
+            rounds_reached[round_of_match(match_no)] += 1
             opponent = b if a == team else a
             knockout_opponents[opponent] += 1
             if winner != team:
                 losses_by_opponent[opponent][round_of_match(match_no)] += 1
 
-        # Reaching any knockout match means the team escaped its group.
-        if team_knockouts:
-            advanced += 1
-
-        # Where the team's run ended. A champion is never knocked out; a team
-        # that reached the knockouts exits in the round of its single loss;
-        # otherwise it failed to advance from the group stage.
         if won:
             titles += 1
-        elif team_knockouts:
-            exit_stages[
-                next(
-                    round_of_match(match_no)
-                    for match_no, _a, _b, winner in team_knockouts
-                    if winner != team
-                )
-            ] += 1
-        else:
-            exit_stages["Group stage"] += 1
 
     print(f"{team} over {runs:,} simulated tournaments:")
     print(f"  Won the cup {titles}/{runs} times ({100 * titles / runs:.2f}%)")
-    print(
-        f"  Made it out of the group {advanced}/{runs} times "
-        f"({100 * advanced / runs:.2f}%)"
-    )
-
-    print("  Knocked out most often in:")
-    for stage, count in exit_stages.most_common(2):
-        print(f"    {stage:<16} {count:>7}  ({100 * count / runs:5.2f}%)")
+    for round_name, _ in ROUND_NAMES:
+        count = rounds_reached[round_name]
+        print(
+            f"  Made it to the {round_name:<16} "
+            f"{count:>6}/{runs}  ({100 * count / runs:5.2f}%)"
+        )
 
     print("  Lost most often to (knockout rounds only):")
     loss_totals = Counter(
