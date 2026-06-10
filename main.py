@@ -549,7 +549,10 @@ def main() -> None:
         "--nu",
         type=float,
         default=DRAW_NU,
-        help=f"Davidson tie parameter for draw probability (default: {DRAW_NU:.4f})",
+        help=(
+            "Davidson tie parameter for draw probability"
+            f" (default: {DRAW_NU:.4f})"
+        ),
     )
     parser.add_argument(
         "--meet",
