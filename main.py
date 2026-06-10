@@ -26,7 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
 
@@ -432,11 +432,96 @@ def simulate_meetings(
     if rounds_met:
         top_round, top_count = Counter(rounds_met).most_common(1)[0]
         summary += (
-            f", most often in the {top_round} "
-            f"({100 * top_count / runs:.1f}%)"
+            f", most often in the {top_round} ({100 * top_count / runs:.1f}%)"
         )
     print(summary)
     return rounds_met
+
+
+def analyze_team(team: str, runs: int, seed: int | None = None) -> None:
+    """Run ``runs`` tournaments and report on a single team's fortunes.
+
+    Prints how often the team wins the cup and escapes its group, the stages
+    it is knocked out at most, the teams it loses to most often in the
+    knockouts (and in which round), and the teams it faces most often in the
+    knockout rounds. Group games are excluded from the loss/opponent tallies.
+    Reuses :func:`simulate_world_cup`, mining the knockout results it returns.
+    """
+    if team not in FIFA_POINTS:
+        raise KeyError(f"unknown team: {team!r}")
+    if seed is not None:
+        random.seed(seed)
+
+    titles = 0
+    advanced = 0
+    exit_stages: Counter[str] = Counter()
+    losses_by_opponent: dict[str, Counter[str]] = defaultdict(Counter)
+    knockout_opponents: Counter[str] = Counter()
+
+    for _ in range(runs):
+        champion, _group_stage, results = simulate_world_cup()
+        won = champion == team
+
+        # Knockout matches involving the team: opponents faced and any loss.
+        team_knockouts = [
+            (match_no, a, b, winner)
+            for match_no, (a, b, winner) in results.items()
+            if team in (a, b)
+        ]
+        for match_no, a, b, winner in team_knockouts:
+            opponent = b if a == team else a
+            knockout_opponents[opponent] += 1
+            if winner != team:
+                losses_by_opponent[opponent][round_of_match(match_no)] += 1
+
+        # Reaching any knockout match means the team escaped its group.
+        if team_knockouts:
+            advanced += 1
+
+        # Where the team's run ended. A champion is never knocked out; a team
+        # that reached the knockouts exits in the round of its single loss;
+        # otherwise it failed to advance from the group stage.
+        if won:
+            titles += 1
+        elif team_knockouts:
+            exit_stages[
+                next(
+                    round_of_match(match_no)
+                    for match_no, _a, _b, winner in team_knockouts
+                    if winner != team
+                )
+            ] += 1
+        else:
+            exit_stages["Group stage"] += 1
+
+    print(f"{team} over {runs:,} simulated tournaments:")
+    print(f"  Won the cup {titles}/{runs} times ({100 * titles / runs:.2f}%)")
+    print(
+        f"  Made it out of the group {advanced}/{runs} times "
+        f"({100 * advanced / runs:.2f}%)"
+    )
+
+    print("  Knocked out most often in:")
+    for stage, count in exit_stages.most_common(2):
+        print(f"    {stage:<16} {count:>7}  ({100 * count / runs:5.2f}%)")
+
+    print("  Lost most often to (knockout rounds only):")
+    loss_totals = Counter(
+        {
+            opp: sum(rounds.values())
+            for opp, rounds in losses_by_opponent.items()
+        }
+    )
+    for opponent, total in loss_totals.most_common(3):
+        when, _ = losses_by_opponent[opponent].most_common(1)[0]
+        print(
+            f"    {opponent:<24} {total:>7}  ({100 * total / runs:5.2f}%)"
+            f", most often in the {when}"
+        )
+
+    print("  Faced most often (knockout rounds only):")
+    for opponent, count in knockout_opponents.most_common(5):
+        print(f"    {opponent:<24} {count:>7}  ({100 * count / runs:5.2f}%)")
 
 
 def main() -> None:
@@ -475,13 +560,25 @@ def main() -> None:
             "two teams meet, and in which round"
         ),
     )
+    parser.add_argument(
+        "--team",
+        metavar="TEAM",
+        help=(
+            "run --runs tournaments (default 1000) and report on one team: "
+            "title rate, exit stages, who it loses to, and who it faces most"
+        ),
+    )
     args = parser.parse_args()
 
     ELO_SCALE = args.elo_scale
     DRAW_NU = args.nu
 
     if args.meet:
-        simulate_meetings(args.meet[0], args.meet[1], args.runs or 1000, args.seed)
+        simulate_meetings(
+            args.meet[0], args.meet[1], args.runs or 1000, args.seed
+        )
+    elif args.team:
+        analyze_team(args.team, args.runs or 1000, args.seed)
     elif args.runs:
         run_many(args.runs, args.seed)
     else:

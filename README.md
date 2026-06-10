@@ -66,6 +66,30 @@ uv run main.py --meet France Argentina --runs 10000 --seed 47
 France met Argentina 693/10000 times (6.9%), most often in the Semifinals (3.7%)
 ```
 
+**Team report** — focus on a single team across many tournaments: how often it wins the cup and escapes its group, the stages it exits at most, who it loses to (and when), and who it faces most often in the knockouts (group games excluded):
+
+```sh
+uv run main.py --team France --runs 10000 --seed 47
+```
+```
+France over 10,000 simulated tournaments:
+  Won the cup 1343/10000 times (13.43%)
+  Made it out of the group 9407/10000 times (94.07%)
+  Knocked out most often in:
+    Round of 32         2405  (24.05%)
+    Round of 16         2110  (21.10%)
+  Lost most often to (knockout rounds only):
+    Germany                      893  ( 8.93%), most often in the Round of 16
+    Morocco                      628  ( 6.28%), most often in the Quarterfinals
+    Brazil                       624  ( 6.24%), most often in the Round of 16
+  Faced most often (knockout rounds only):
+    Germany                     2474  (24.74%)
+    Morocco                     1668  (16.68%)
+    Ecuador                     1620  (16.20%)
+    Brazil                      1602  (16.02%)
+    Netherlands                 1330  (13.30%)
+```
+
 Pass `--seed <int>` to any mode for reproducible results.
 
 ## Advanced usage
