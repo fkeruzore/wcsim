@@ -29,6 +29,7 @@ import random
 from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
+from tqdm import trange
 
 # --- Team strengths: FIFA ranking points (higher = stronger) ----------------
 ELO_SCALE = 600  # FIFA's win-probability scale s
@@ -540,7 +541,7 @@ def run_many(runs: int, seed: int | None, known: dict | None = None) -> None:
     if seed is not None:
         random.seed(seed)
     tally: Counter[str] = Counter()
-    for _ in range(runs):
+    for _ in trange(runs):
         champion, _, _ = simulate_world_cup(known=known)
         tally[champion] += 1
 
@@ -593,7 +594,7 @@ def simulate_meetings(
 
     rounds_met: list[str] = []
     tournaments_with_meeting = 0
-    for _ in range(runs):
+    for _ in trange(runs):
         met_this_run: list[str] = []
         if same_group:  # a round-robin guarantees a group-stage meeting
             met_this_run.append("Group stage")
@@ -639,7 +640,7 @@ def analyze_team(
     losses_by_opponent: dict[str, Counter[str]] = defaultdict(Counter)
     knockout_opponents: Counter[str] = Counter()
 
-    for _ in range(runs):
+    for _ in trange(runs):
         champion, _group_stage, results = simulate_world_cup(known=known)
         won = champion == team
 

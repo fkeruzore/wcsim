@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Simple Monte Carlo simulator for the 2026 World Cup"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "tqdm>=4.68.2",
+]
 authors = [
     { name = "Florian Kéruzoré", email = "florian.keruzore@gmail.com" },
 ]
