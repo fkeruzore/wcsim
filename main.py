@@ -120,6 +120,148 @@ ROUND_NAMES: list[tuple[str, range]] = [
     ("Final", range(104, 105)),
 ]
 
+# --- Results file: the real tournament status so far ------------------------
+# A hand-editable record of matches already played. Modes start from it by
+# default; ``--ignore-standings`` (or a missing/empty file) simulates fresh.
+RESULTS_PATH = Path(__file__).parent / "results.json"
+
+
+def knockout_match_numbers() -> list[int]:
+    """All knockout match numbers actually used (73-104, skipping 103)."""
+    return [
+        match_no
+        for _name, match_range in ROUND_NAMES
+        for match_no in match_range
+    ]
+
+
+def build_scaffold() -> dict:
+    """Build a blank results structure: every fixture with ``result: null``.
+
+    Group matches are listed in the same ``combinations(teams, 2)`` order that
+    :func:`simulate_group` iterates, so they map one-to-one onto the simulated
+    fixtures. Knockout entries are keyed by match number (winner filled later).
+    """
+    groups = {
+        group: [
+            {"home": home, "away": away, "result": None}
+            for home, away in combinations(teams, 2)
+        ]
+        for group, teams in GROUPS.items()
+    }
+    knockout = {str(match_no): None for match_no in knockout_match_numbers()}
+    return {"updated": None, "groups": groups, "knockout": knockout}
+
+
+def merge_results(scaffold: dict, existing: dict) -> dict:
+    """Copy non-null results from ``existing`` onto a fresh ``scaffold``.
+
+    Group matches are matched by ``(home, away)`` within a group and knockout
+    matches by match number; anything in ``existing`` that no longer maps onto
+    the scaffold (e.g. a renamed team) is silently dropped. ``scaffold`` is
+    mutated and returned.
+    """
+    existing_groups = existing.get("groups", {})
+    for group, matches in scaffold["groups"].items():
+        previous = {
+            (m.get("home"), m.get("away")): m.get("result")
+            for m in existing_groups.get(group, [])
+        }
+        for match in matches:
+            result = previous.get((match["home"], match["away"]))
+            if result is not None:
+                match["result"] = result
+    existing_knockout = existing.get("knockout", {})
+    for match_no in scaffold["knockout"]:
+        if existing_knockout.get(match_no) is not None:
+            scaffold["knockout"][match_no] = existing_knockout[match_no]
+    return scaffold
+
+
+def load_results(path: str | Path = RESULTS_PATH) -> dict | None:
+    """Read and validate a results file into the form the simulator consumes.
+
+    Returns ``None`` when the file is missing or records nothing yet (so the
+    tournament is simulated fresh). Otherwise returns::
+
+        {"groups": {group: {frozenset({home, away}): winner_or_"draw"}},
+         "knockout": {match_no: winner}}
+
+    with only the matches that have actually been played. Raises ``ValueError``
+    with a clear message on a malformed file.
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+    raw = json.loads(path.read_text(encoding="utf-8"))
+
+    groups: dict[str, dict[frozenset[str], str]] = {}
+    for group, matches in raw.get("groups", {}).items():
+        if group not in GROUPS:
+            raise ValueError(f"unknown group {group!r} in {path}")
+        valid_teams = set(GROUPS[group])
+        known: dict[frozenset[str], str] = {}
+        for match in matches:
+            home, away, result = (
+                match["home"],
+                match["away"],
+                match.get("result"),
+            )
+            if {home, away} - valid_teams:
+                raise ValueError(
+                    f"group {group}: {home!r} vs {away!r} are not "
+                    "both in the group"
+                )
+            if result is None:
+                continue
+            if result.lower() != "draw" and result not in (home, away):
+                raise ValueError(
+                    f"group {group}: result {result!r} for {home} vs "
+                    f'{away} must be {home!r}, {away!r}, "draw" or null'
+                )
+            known[frozenset((home, away))] = result
+        if known:
+            groups[group] = known
+
+    knockout: dict[int, str] = {}
+    for match_no, winner in raw.get("knockout", {}).items():
+        if winner is None:
+            continue
+        if winner not in FIFA_POINTS:
+            raise ValueError(
+                f"knockout match {match_no}: unknown team {winner!r}"
+            )
+        knockout[int(match_no)] = winner
+
+    if not groups and not knockout:
+        return None
+    return {"groups": groups, "knockout": knockout}
+
+
+def standings_from_results(
+    teams: list[str], known_group: dict[frozenset[str], str] | None
+) -> list[tuple[str, int, int]]:
+    """Current ``(team, points, played)`` from recorded matches only.
+
+    Ranked by points then FIFA points, mirroring :func:`simulate_group`'s
+    ranking. Unplayed matches are ignored.
+    """
+    points: Counter[str] = Counter()
+    played: Counter[str] = Counter()
+    for pair, result in (known_group or {}).items():
+        a, b = tuple(pair)
+        played[a] += 1
+        played[b] += 1
+        if result.lower() == "draw":
+            points[a] += 1
+            points[b] += 1
+        else:
+            points[result] += 3
+    ranked = sorted(
+        teams, key=lambda t: (points[t], FIFA_POINTS[t]), reverse=True
+    )
+    return [(team, points[team], played[team]) for team in ranked]
+
 
 def win_probability(team_a: str, team_b: str) -> float:
     """FIFA Elo probability that ``team_a`` beats ``team_b``.
@@ -165,7 +307,9 @@ def play(team_a: str, team_b: str, draw_ok: bool = True) -> str | None:
     return team_b
 
 
-def simulate_group(teams: list[str]) -> list[tuple[str, int]]:
+def simulate_group(
+    teams: list[str], known: dict[frozenset[str], str] | None = None
+) -> list[tuple[str, int]]:
     """Round-robin a group of 4, returning (team, points) ranked
     1st -> 4th.
 
@@ -173,10 +317,21 @@ def simulate_group(teams: list[str]) -> list[tuple[str, int]]:
     Ranking is by points; teams level on points are separated by FIFA
     points (the higher-ranked side advances), a deterministic stand-in
     for the real goal-difference tiebreakers.
+
+    ``known`` maps ``frozenset({home, away})`` of an already-played
+    match to its recorded outcome (the winner's name or ``"draw"``);
+    those matches are used as-is and consume no randomness, only the
+    rest are simulated.
     """
     points: Counter[str] = Counter()
     for home, away in combinations(teams, 2):
-        winner = play(home, away)  # draw_ok=True by default
+        result = known.get(frozenset((home, away))) if known else None
+        if result is None:  # not yet played -> simulate
+            winner = play(home, away)  # draw_ok=True by default
+        elif result.lower() == "draw":
+            winner = None
+        else:  # recorded winner
+            winner = result
         if winner is None:
             points[home] += 1
             points[away] += 1
@@ -188,21 +343,25 @@ def simulate_group(teams: list[str]) -> list[tuple[str, int]]:
     return [(team, points[team]) for team in ranked]
 
 
-def simulate_group_stage() -> tuple[
-    dict[str, str], dict[str, str], dict[str, str], dict[str, int]
-]:
+def simulate_group_stage(
+    known_groups: dict[str, dict[frozenset[str], str]] | None = None,
+) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, int]]:
     """Run all 12 groups.
 
     Returns the winner, runner-up and third per group, plus each
     third-placed team's points (needed to rank the best thirds).
+
+    ``known_groups`` maps a group letter to its already-played matches (see
+    :func:`simulate_group`); the remaining fixtures are simulated.
     """
     winners: dict[str, str] = {}
     runners_up: dict[str, str] = {}
     thirds: dict[str, str] = {}
     third_points: dict[str, int] = {}
     for group, teams in GROUPS.items():
+        known = known_groups.get(group) if known_groups else None
         (first, _), (second, _), (third, third_pts), _fourth = simulate_group(
-            teams
+            teams, known
         )
         winners[group] = first
         runners_up[group] = second
@@ -263,54 +422,71 @@ def simulate_knockout(
     runners_up: dict[str, str],
     thirds: dict[str, str],
     third_assignment: dict[int, str],
+    known_knockout: dict[int, str] | None = None,
 ) -> tuple[dict[int, tuple[str, str, str]], str]:
     """Play the knockout bracket.
 
-    Returns {match_no: (a, b, winner)} and the champion.
+    Returns {match_no: (a, b, winner)} and the champion. ``known_knockout``
+    maps a match number to its recorded winner; a recorded winner is used as-is
+    when it is one of the two participants (only possible once the relevant
+    group results are settled), otherwise the match is simulated.
     """
+    known_knockout = known_knockout or {}
 
     def slot_team(code: str) -> str:
         rank, group = code[0], code[1:]
         return winners[group] if rank == "1" else runners_up[group]
+
+    def resolve(match_no: int, a: str, b: str) -> tuple[str, str, str]:
+        recorded = known_knockout.get(match_no)
+        winner = recorded if recorded in (a, b) else play(a, b, draw_ok=False)
+        return (a, b, winner)
 
     results: dict[int, tuple[str, str, str]] = {}
 
     # Knockouts resolve to a winner (extra time / penalties): no draws.
     # Round of 32: fixed pairings, then group-winner vs assigned third-placed.
     for match_no, code_a, code_b in R32_FIXED:
-        a, b = slot_team(code_a), slot_team(code_b)
-        results[match_no] = (a, b, play(a, b, draw_ok=False))
+        results[match_no] = resolve(
+            match_no, slot_team(code_a), slot_team(code_b)
+        )
     for match_no, winner_group, _allowed in R32_THIRD_SLOTS:
         a = winners[winner_group]
         b = thirds[third_assignment[match_no]]
-        results[match_no] = (a, b, play(a, b, draw_ok=False))
+        results[match_no] = resolve(match_no, a, b)
 
     # Round of 16 onward: resolve "W<n>" feeders from earlier results.
     for match_no, feed_a, feed_b in KNOCKOUT_FEED:
         a = results[int(feed_a[1:])][2]
         b = results[int(feed_b[1:])][2]
-        results[match_no] = (a, b, play(a, b, draw_ok=False))
+        results[match_no] = resolve(match_no, a, b)
 
     return results, results[104][2]
 
 
 def simulate_world_cup(
     seed: int | None = None,
+    known: dict | None = None,
 ) -> tuple[str, dict, dict]:
     """Simulate one full tournament.
 
     Returns the champion plus the group-stage and knockout details
     needed to trace the progression. If ``seed`` is given the run is
-    reproducible.
+    reproducible. ``known`` is the parsed results from :func:`load_results`
+    (``{"groups": ..., "knockout": ...}``); recorded matches are kept fixed and
+    only the rest are simulated.
     """
     if seed is not None:
         random.seed(seed)
 
-    winners, runners_up, thirds, third_points = simulate_group_stage()
+    known = known or {}
+    winners, runners_up, thirds, third_points = simulate_group_stage(
+        known.get("groups")
+    )
     qualified_groups = pick_best_thirds(thirds, third_points)
     third_assignment = assign_thirds(qualified_groups)
     results, champion = simulate_knockout(
-        winners, runners_up, thirds, third_assignment
+        winners, runners_up, thirds, third_assignment, known.get("knockout")
     )
 
     group_stage = {
@@ -359,13 +535,13 @@ def print_trace(champion: str, group_stage: dict, results: dict) -> None:
     print("=" * 56)
 
 
-def run_many(runs: int, seed: int | None) -> None:
+def run_many(runs: int, seed: int | None, known: dict | None = None) -> None:
     """Simulate many tournaments and print a champion frequency tally."""
     if seed is not None:
         random.seed(seed)
     tally: Counter[str] = Counter()
     for _ in range(runs):
-        champion, _, _ = simulate_world_cup()
+        champion, _, _ = simulate_world_cup(known=known)
         tally[champion] += 1
 
     print(
@@ -393,7 +569,11 @@ def group_of(team: str) -> str | None:
 
 
 def simulate_meetings(
-    team_a: str, team_b: str, runs: int, seed: int | None = None
+    team_a: str,
+    team_b: str,
+    runs: int,
+    seed: int | None = None,
+    known: dict | None = None,
 ) -> list[str]:
     """Run ``runs`` tournaments and report how often two teams meet.
 
@@ -417,7 +597,7 @@ def simulate_meetings(
         met_this_run: list[str] = []
         if same_group:  # a round-robin guarantees a group-stage meeting
             met_this_run.append("Group stage")
-        _champion, _group_stage, results = simulate_world_cup()
+        _champion, _group_stage, results = simulate_world_cup(known=known)
         for match_no, (a, b, _winner) in results.items():
             if {a, b} == pair:
                 met_this_run.append(round_of_match(match_no))
@@ -438,7 +618,9 @@ def simulate_meetings(
     return rounds_met
 
 
-def analyze_team(team: str, runs: int, seed: int | None = None) -> None:
+def analyze_team(
+    team: str, runs: int, seed: int | None = None, known: dict | None = None
+) -> None:
     """Run ``runs`` tournaments and report on a single team's fortunes.
 
     Prints how often the team wins the cup and reaches each knockout round,
@@ -458,7 +640,7 @@ def analyze_team(team: str, runs: int, seed: int | None = None) -> None:
     knockout_opponents: Counter[str] = Counter()
 
     for _ in range(runs):
-        champion, _group_stage, results = simulate_world_cup()
+        champion, _group_stage, results = simulate_world_cup(known=known)
         won = champion == team
 
         # Knockout matches involving the team: opponents faced and any loss.
@@ -552,21 +734,40 @@ def main() -> None:
             "title rate, exit stages, who it loses to, and who it faces most"
         ),
     )
+    parser.add_argument(
+        "--results-file",
+        type=Path,
+        default=RESULTS_PATH,
+        help=(
+            "real results so far to start from, as written by update.py "
+            f"(default: {RESULTS_PATH.name})"
+        ),
+    )
+    parser.add_argument(
+        "--ignore-standings",
+        action="store_true",
+        help="ignore the results file and simulate the whole tournament fresh",
+    )
     args = parser.parse_args()
 
     ELO_SCALE = args.elo_scale
     DRAW_NU = args.nu
+    known = None if args.ignore_standings else load_results(args.results_file)
 
     if args.meet:
         simulate_meetings(
-            args.meet[0], args.meet[1], args.runs or 1000, args.seed
+            args.meet[0], args.meet[1], args.runs or 1000, args.seed, known
         )
     elif args.team:
-        analyze_team(args.team, args.runs or 1000, args.seed)
+        analyze_team(args.team, args.runs or 1000, args.seed, known)
     elif args.runs:
-        run_many(args.runs, args.seed)
+        run_many(args.runs, args.seed, known)
     else:
-        champion, group_stage, results = simulate_world_cup(seed=args.seed)
+        if known is not None:
+            print(f"(continuing from {args.results_file})\n")
+        champion, group_stage, results = simulate_world_cup(
+            seed=args.seed, known=known
+        )
         print_trace(champion, group_stage, results)
 
 

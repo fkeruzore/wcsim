@@ -93,6 +93,55 @@ France over 10,000 simulated tournaments:
 
 Pass `--seed <int>` to any mode for reproducible results.
 
+## Starting from real results
+
+The tournament has started, so every mode above can pick up from the matches that have actually been played: recorded results are kept fixed and only the remaining fixtures are simulated.
+
+Record the current status with `update.py`, which writes (and re-summarises) a hand-editable `results.json`:
+
+```sh
+uv run update.py
+```
+```
+Wrote results.json
+
+Tournament status (updated 2026-06-15):
+
+  Group C  (3/6 played):
+    1. Morocco                   3 pts  (1 played)
+    2. Scotland                  3 pts  (1 played)
+    3. Haiti                     3 pts  (1 played)
+    4. Brazil                    0 pts  (3 played)
+[...]
+
+  Knockout results so far:
+    none yet
+```
+
+The first run creates a blank `results.json` (every fixture `null`). Fill it in by hand: set each group match's `"result"` to the **winning team's name** or `"draw"` (leave `null` if not yet played), and set a knockout entry to its winner's name. Re-running `update.py` validates your edits, refreshes the standings summary, and preserves everything you typed.
+
+```json
+{
+  "groups": {
+    "C": [
+      {"home": "Brazil", "away": "Morocco",  "result": "Morocco"},
+      {"home": "Brazil", "away": "Haiti",    "result": "Haiti"},
+      {"home": "Brazil", "away": "Scotland", "result": "Scotland"}
+    ]
+  },
+  "knockout": {"73": null}
+}
+```
+
+From then on, `main.py` starts from `results.json` automatically:
+
+```sh
+uv run main.py --seed 47                      # trace continues from results.json
+uv run main.py --team Brazil --runs 10000     # Brazil's odds given its real start
+```
+
+Use `--ignore-standings` to simulate the whole tournament from scratch (the original behaviour), or `--results-file PATH` to read a different file.
+
 ## Advanced usage
 
 **Varying simulation parameters** — adjust the Elo scale (`--elo-scale`) or the draw probability (`--nu`) to explore different assumptions:
