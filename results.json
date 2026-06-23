@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-22",
+  "updated": "2026-06-23",
   "groups": {
     "A": [
       {
@@ -266,7 +266,7 @@
       {
         "home": "France",
         "away": "Iraq",
-        "result": null
+        "result": "France"
       },
       {
         "home": "France",
@@ -281,7 +281,7 @@
       {
         "home": "Senegal",
         "away": "Norway",
-        "result": null
+        "result": "Norway"
       },
       {
         "home": "Iraq",
@@ -298,7 +298,7 @@
       {
         "home": "Argentina",
         "away": "Austria",
-        "result": null
+        "result": "Argentina"
       },
       {
         "home": "Argentina",
@@ -313,7 +313,7 @@
       {
         "home": "Algeria",
         "away": "Jordan",
-        "result": null
+        "result": "Algeria"
       },
       {
         "home": "Austria",
