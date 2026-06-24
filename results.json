@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-23",
+  "updated": "2026-06-24",
   "groups": {
     "A": [
       {
@@ -330,7 +330,7 @@
       {
         "home": "Portugal",
         "away": "Uzbekistan",
-        "result": null
+        "result": "Portugal"
       },
       {
         "home": "Portugal",
@@ -345,7 +345,7 @@
       {
         "home": "DR Congo",
         "away": "Colombia",
-        "result": null
+        "result": "Colombia"
       },
       {
         "home": "Uzbekistan",
@@ -362,7 +362,7 @@
       {
         "home": "England",
         "away": "Ghana",
-        "result": null
+        "result": "Draw"
       },
       {
         "home": "England",
@@ -377,7 +377,7 @@
       {
         "home": "Croatia",
         "away": "Panama",
-        "result": null
+        "result": "Croatia"
       },
       {
         "home": "Ghana",
