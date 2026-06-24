@@ -638,7 +638,7 @@ def analyze_team(
     titles = 0
     rounds_reached: Counter[str] = Counter()
     losses_by_opponent: dict[str, Counter[str]] = defaultdict(Counter)
-    knockout_opponents: Counter[str] = Counter()
+    opponents_by_round: dict[str, Counter[str]] = defaultdict(Counter)
 
     for _ in trange(runs):
         champion, _group_stage, results = simulate_world_cup(known=known)
@@ -651,11 +651,12 @@ def analyze_team(
             if team in (a, b)
         ]
         for match_no, a, b, winner in team_knockouts:
-            rounds_reached[round_of_match(match_no)] += 1
+            rnd = round_of_match(match_no)
+            rounds_reached[rnd] += 1
             opponent = b if a == team else a
-            knockout_opponents[opponent] += 1
+            opponents_by_round[rnd][opponent] += 1
             if winner != team:
-                losses_by_opponent[opponent][round_of_match(match_no)] += 1
+                losses_by_opponent[opponent][rnd] += 1
 
         if won:
             titles += 1
@@ -683,9 +684,23 @@ def analyze_team(
             f", most often in the {when}"
         )
 
-    print("  Faced most often (knockout rounds only):")
-    for opponent, count in knockout_opponents.most_common(5):
-        print(f"    {opponent:<24} {count:>7}  ({100 * count / runs:5.2f}%)")
+    round_w = max(len(name) for name, _ in ROUND_NAMES)
+    rows = [
+        (
+            round_name,
+            [
+                f"{opp} ({100 * n / runs:.1f}%)"
+                for opp, n in opponents_by_round[round_name].most_common(3)
+            ],
+        )
+        for round_name, _ in ROUND_NAMES
+        if round_name in opponents_by_round
+    ]
+    entry_w = max(len(e) for _, entries in rows for e in entries)
+    print("  Faced most often in:")
+    for round_name, entries in rows:
+        cols = "  ".join(f"{e:<{entry_w}}" for e in entries)
+        print(f"    {round_name:<{round_w}}  {cols.rstrip()}")
 
 
 def main() -> None:
