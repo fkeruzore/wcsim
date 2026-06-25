@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-24",
+  "updated": "2026-06-25",
   "groups": {
     "A": [
       {
@@ -15,12 +15,12 @@
       {
         "home": "Mexico",
         "away": "Czech Republic",
-        "result": null
+        "result": "Mexico"
       },
       {
         "home": "South Africa",
         "away": "South Korea",
-        "result": null
+        "result": "South Africa"
       },
       {
         "home": "South Africa",
@@ -47,12 +47,12 @@
       {
         "home": "Canada",
         "away": "Switzerland",
-        "result": null
+        "result": "Switzerland"
       },
       {
         "home": "Bosnia and Herzegovina",
         "away": "Qatar",
-        "result": null
+        "result": "Bosnia and Herzegovina"
       },
       {
         "home": "Bosnia and Herzegovina",
@@ -79,12 +79,12 @@
       {
         "home": "Brazil",
         "away": "Scotland",
-        "result": null
+        "result": "Brazil"
       },
       {
         "home": "Morocco",
         "away": "Haiti",
-        "result": null
+        "result": "Morocco"
       },
       {
         "home": "Morocco",
