@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-25",
+  "updated": "2026-06-26",
   "groups": {
     "A": [
       {
@@ -111,12 +111,12 @@
       {
         "home": "United States",
         "away": "Turkey",
-        "result": null
+        "result": "Turkey"
       },
       {
         "home": "Paraguay",
         "away": "Australia",
-        "result": null
+        "result": "Draw"
       },
       {
         "home": "Paraguay",
@@ -143,12 +143,12 @@
       {
         "home": "Germany",
         "away": "Ecuador",
-        "result": null
+        "result": "Ecuador"
       },
       {
         "home": "Curaçao",
         "away": "Ivory Coast",
-        "result": null
+        "result": "Ivory Coast"
       },
       {
         "home": "Curaçao",
@@ -175,12 +175,12 @@
       {
         "home": "Netherlands",
         "away": "Tunisia",
-        "result": null
+        "result": "Netherlands"
       },
       {
         "home": "Japan",
         "away": "Sweden",
-        "result": null
+        "result": "Draw"
       },
       {
         "home": "Japan",
