@@ -10,7 +10,7 @@
       {
         "home": "Mexico",
         "away": "South Korea",
-        "result": null
+        "result": "Mexico"
       },
       {
         "home": "Mexico",
@@ -25,7 +25,7 @@
       {
         "home": "South Africa",
         "away": "Czech Republic",
-        "result": null
+        "result": "Draw"
       },
       {
         "home": "South Korea",
@@ -42,7 +42,7 @@
       {
         "home": "Canada",
         "away": "Qatar",
-        "result": null
+        "result": "Canada"
       },
       {
         "home": "Canada",
@@ -57,7 +57,7 @@
       {
         "home": "Bosnia and Herzegovina",
         "away": "Switzerland",
-        "result": null
+        "result": "Switzerland"
       },
       {
         "home": "Qatar",
@@ -74,7 +74,7 @@
       {
         "home": "Brazil",
         "away": "Haiti",
-        "result": null
+        "result": "Brazil"
       },
       {
         "home": "Brazil",
@@ -89,7 +89,7 @@
       {
         "home": "Morocco",
         "away": "Scotland",
-        "result": null
+        "result": "Morocco"
       },
       {
         "home": "Haiti",
@@ -106,7 +106,7 @@
       {
         "home": "United States",
         "away": "Australia",
-        "result": null
+        "result": "United States"
       },
       {
         "home": "United States",
@@ -121,7 +121,7 @@
       {
         "home": "Paraguay",
         "away": "Turkey",
-        "result": null
+        "result": "Paraguay"
       },
       {
         "home": "Australia",
@@ -207,12 +207,12 @@
       {
         "home": "Belgium",
         "away": "New Zealand",
-        "result": null
+        "result": "Belgium"
       },
       {
         "home": "Egypt",
         "away": "Iran",
-        "result": null
+        "result": "Egypt"
       },
       {
         "home": "Egypt",
@@ -239,12 +239,12 @@
       {
         "home": "Spain",
         "away": "Uruguay",
-        "result": null
+        "result": "Spain"
       },
       {
         "home": "Cape Verde",
         "away": "Saudi Arabia",
-        "result": null
+        "result": "Draw"
       },
       {
         "home": "Cape Verde",
@@ -271,12 +271,12 @@
       {
         "home": "France",
         "away": "Norway",
-        "result": null
+        "result": "France"
       },
       {
         "home": "Senegal",
         "away": "Iraq",
-        "result": null
+        "result": "Senegal"
       },
       {
         "home": "Senegal",
@@ -303,12 +303,12 @@
       {
         "home": "Argentina",
         "away": "Jordan",
-        "result": null
+        "result": "Argentina"
       },
       {
         "home": "Algeria",
         "away": "Austria",
-        "result": null
+        "result": "Algeria"
       },
       {
         "home": "Algeria",
@@ -335,7 +335,7 @@
       {
         "home": "Portugal",
         "away": "Colombia",
-        "result": null
+        "result": "Colombia"
       },
       {
         "home": "DR Congo",
@@ -367,12 +367,12 @@
       {
         "home": "England",
         "away": "Panama",
-        "result": null
+        "result": "England"
       },
       {
         "home": "Croatia",
         "away": "Ghana",
-        "result": null
+        "result": "Draw"
       },
       {
         "home": "Croatia",
