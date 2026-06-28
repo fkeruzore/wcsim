@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-26",
+  "updated": "2026-06-28",
   "groups": {
     "A": [
       {
@@ -335,12 +335,12 @@
       {
         "home": "Portugal",
         "away": "Colombia",
-        "result": "Colombia"
+        "result": "Draw"
       },
       {
         "home": "DR Congo",
         "away": "Uzbekistan",
-        "result": null
+        "result": "DR Congo"
       },
       {
         "home": "DR Congo",
