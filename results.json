@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-28",
+  "updated": "2026-06-30",
   "groups": {
     "A": [
       {
@@ -212,7 +212,7 @@
       {
         "home": "Egypt",
         "away": "Iran",
-        "result": "Egypt"
+        "result": "Draw"
       },
       {
         "home": "Egypt",
@@ -308,7 +308,7 @@
       {
         "home": "Algeria",
         "away": "Austria",
-        "result": "Algeria"
+        "result": "Draw"
       },
       {
         "home": "Algeria",
@@ -372,7 +372,7 @@
       {
         "home": "Croatia",
         "away": "Ghana",
-        "result": "Draw"
+        "result": "Croatia"
       },
       {
         "home": "Croatia",
@@ -387,10 +387,10 @@
     ]
   },
   "knockout": {
-    "73": null,
-    "74": null,
-    "75": null,
-    "76": null,
+    "73": "Canada",
+    "74": "Paraguay",
+    "75": "Morocco",
+    "76": "Brazil",
     "77": null,
     "78": null,
     "79": null,
