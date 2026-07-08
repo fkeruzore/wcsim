@@ -172,8 +172,21 @@ def assign_knockouts(data: dict, web_ko: dict[frozenset[str], str]) -> None:
 
     for match_no, code_a, code_b in R32_FIXED:
         record(match_no, slot_team(code_a), slot_team(code_b))
-    for match_no, winner_group, _allowed in R32_THIRD_SLOTS:
-        record(match_no, winners[winner_group], thirds[assignment[match_no]])
+    for match_no, winner_group, allowed in R32_THIRD_SLOTS:
+        winner_team = winners[winner_group]
+        # assign_thirds only guarantees *a* valid matching; when several
+        # exist, it may not be the one FIFA actually drew. Prefer whichever
+        # pairing the fetched web results confirm was actually played.
+        actual_group = next(
+            (
+                group
+                for group in allowed
+                if group in qualified
+                and frozenset((winner_team, thirds[group])) in web_ko
+            ),
+            assignment[match_no],
+        )
+        record(match_no, winner_team, thirds[actual_group])
     for match_no, feed_a, feed_b in KNOCKOUT_FEED:
         a = match_winner.get(int(feed_a[1:]))
         b = match_winner.get(int(feed_b[1:]))
